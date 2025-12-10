@@ -4,7 +4,7 @@
     --text-color: #333333;
 }
 body {
-    font-family: Arial, sans-serif;
+    font-family: 'League Spartan', Arial, sans-serif;
     background-color: var(--background-color);
     color: var(--text-color);
     display: flex;

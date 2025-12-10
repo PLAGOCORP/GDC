@@ -1,4 +1,4 @@
-const EVENTO_TITULO = "Mujeres en Movimiento";
+let EVENTO_TITULO = "Mujeres en Movimiento";
 const CSV_PATH = 'data/participantes.csv';
 const PDF_UNITS = 'mm';
 const PDF_FORMAT = 'a4';
@@ -11,10 +11,8 @@ let currentCedulaY = 150;
 let currentFuente = 'helvetica';
 let currentTamano = 28;
 let currentColor = '#000000';
-let customFontDataUrl = null;
-let customFontBase64 = null;
-const customFontFamily = 'GDC_Custom';
-const customFontVfsName = 'gdc_custom.ttf';
+const FONTS_KEY = 'gdc_fonts';
+let fontsStore = {}; // { family: { dataUrl, base64, format, vfsName } }
 let customFontFormat = 'truetype';
 let participantesData = [];
 const tituloEvento = document.getElementById('titulo-evento');
@@ -46,27 +44,25 @@ window.onload = function() {
     cargarDatos();
     const bgStored = localStorage.getItem('gdc_bg');
     if (bgStored) { bgDataUrl = bgStored; const z = document.getElementById('zona-calibracion'); if (z) z.style.backgroundImage = `url('${bgDataUrl}')`; }
-    const fontStored = localStorage.getItem('gdc_font');
-    if (fontStored) {
-        try {
-            const f = JSON.parse(fontStored);
-            customFontDataUrl = f.dataUrl;
-            customFontBase64 = f.base64;
-            customFontFormat = f.format || 'truetype';
-            ensureCustomFontCss();
-            ensureCustomFontOption();
-        } catch {}
-    }
+    loadFontsFromStorage();
+    ensureLeagueSpartanDefault();
+    const slug = getCurrentSlug();
+    const cfgUrl = slug ? `configs/${slug}.json` : 'config.json';
     try {
-        fetch('config.json').then(r => r.ok ? r.json() : null).then(cfg => {
+        fetch(cfgUrl).then(r => r.ok ? r.json() : null).then(cfg => {
             if (!cfg) return;
             if (cfg.bg) { bgDataUrl = cfg.bg; localStorage.setItem('gdc_bg', bgDataUrl); const z = document.getElementById('zona-calibracion'); if (z) z.style.backgroundImage = `url('${bgDataUrl}')`; }
-            if (cfg.font && cfg.font.dataUrl && cfg.font.base64) {
-                customFontDataUrl = cfg.font.dataUrl; customFontBase64 = cfg.font.base64; customFontFormat = cfg.font.format || 'truetype'; localStorage.setItem('gdc_font', JSON.stringify(cfg.font)); ensureCustomFontCss(); ensureCustomFontOption(); }
+            if (cfg.font && cfg.font.dataUrl && cfg.font.base64 && cfg.font.family) {
+                fontsStore[cfg.font.family] = { dataUrl: cfg.font.dataUrl, base64: cfg.font.base64, format: cfg.font.format || 'truetype', vfsName: `${cfg.font.family}.ttf` };
+                persistFonts();
+                injectFontCss(cfg.font.family, cfg.font.dataUrl, cfg.font.format || 'truetype');
+                addFontOption(cfg.font.family);
+            }
             if (cfg.csv) { localStorage.setItem('gdc_csv', cfg.csv); Papa.parse(cfg.csv, { header: true, skipEmptyLines: true, complete: r => { participantesData = r.data; } }); }
             if (cfg.design) { localStorage.setItem('gdc_cfg', JSON.stringify(cfg.design)); currentNombreX = cfg.design.nombreX ?? currentNombreX; currentNombreY = cfg.design.nombreY ?? currentNombreY; currentCedulaX = cfg.design.cedulaX ?? currentCedulaX; currentCedulaY = cfg.design.cedulaY ?? currentCedulaY; currentFuente = cfg.design.fuente ?? currentFuente; currentTamano = cfg.design.tamano ?? currentTamano; currentColor = cfg.design.color ?? currentColor; applyPreview(); }
+            if (cfg.eventTitle) { EVENTO_TITULO = cfg.eventTitle; const t = document.getElementById('titulo-evento'); if (t) t.textContent = `Descarga tu Certificado para el evento: ${EVENTO_TITULO}`; }
             if (cfg.landing) { localStorage.setItem('gdc_landing', JSON.stringify(cfg.landing)); aplicarLandingDesdeStorage(); }
-        }).catch(()=>{});
+            }).catch(()=>{});
     } catch {}
     const cfgStored = localStorage.getItem('gdc_cfg');
     if (cfgStored) {
@@ -131,10 +127,11 @@ function generarCertificado(nombre, cedula) {
         unit: PDF_UNITS,
         format: PDF_FORMAT
     });
-    if (customFontBase64) {
+if (fontsStore[currentFuente] && fontsStore[currentFuente].base64) {
         try {
-            doc.addFileToVFS(customFontVfsName, customFontBase64);
-            doc.addFont(customFontVfsName, customFontFamily, 'normal');
+            const f = fontsStore[currentFuente];
+            doc.addFileToVFS(f.vfsName, f.base64);
+            doc.addFont(f.vfsName, currentFuente, 'normal');
         } catch (e) { console.warn('No se pudo registrar la fuente personalizada en jsPDF:', e); }
     }
     const docWidth = doc.internal.pageSize.getWidth();
@@ -148,7 +145,7 @@ function generarCertificado(nombre, cedula) {
         } catch (e) {
             console.warn('No se pudo agregar la imagen base:', e);
         }
-        doc.setFont(customFontBase64 && currentFuente === customFontFamily ? customFontFamily : currentFuente, 'normal');
+        doc.setFont(currentFuente, 'normal');
         doc.setFontSize(currentTamano);
         const c = hexToRgb(currentColor);
         doc.setTextColor(c.r, c.g, c.b);
@@ -159,7 +156,7 @@ function generarCertificado(nombre, cedula) {
         if (feedback) feedback.textContent = `✅ Certificado para ${nombre} generado. Verifica tu carpeta de descargas.`;
     };
     img.onerror = function() {
-        doc.setFont(customFontBase64 && currentFuente === customFontFamily ? customFontFamily : currentFuente, 'normal');
+        doc.setFont(currentFuente, 'normal');
         doc.setFontSize(currentTamano);
         const c = hexToRgb(currentColor);
         doc.setTextColor(c.r, c.g, c.b);
@@ -202,7 +199,7 @@ function hexToRgb(hex) {
     return { r: (bigint>>16)&255, g: (bigint>>8)&255, b: bigint&255 };
 }
 const tabs = document.querySelectorAll('.tab-btn');
-const sections = { diseno: document.getElementById('tab-diseno'), datos: document.getElementById('tab-datos'), landing: document.getElementById('tab-landing') };
+const sections = { diseno: document.getElementById('tab-diseno'), datos: document.getElementById('tab-datos'), landing: document.getElementById('tab-landing'), subsitios: document.getElementById('tab-subsitios') };
 tabs.forEach(btn => btn.addEventListener('click', () => {
     tabs.forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
@@ -227,6 +224,7 @@ const selectFuente = document.getElementById('select-fuente');
 const inputTamano = document.getElementById('input-tamano');
 const inputColor = document.getElementById('input-color');
 const inputFont = document.getElementById('input-font');
+const fontsLoadedInfo = document.getElementById('fonts-loaded-info');
 const sNombreX = document.getElementById('slider-nombre-x');
 const sNombreY = document.getElementById('slider-nombre-y');
 const sCedulaX = document.getElementById('slider-cedula-x');
@@ -239,8 +237,8 @@ function applyPreview() {
     previewNombre.style.top = mmToPx(currentNombreY, 210, rect.height) + 'px';
     previewCedula.style.left = mmToPx(currentCedulaX, 297, rect.width) + 'px';
     previewCedula.style.top = mmToPx(currentCedulaY, 210, rect.height) + 'px';
-    previewNombre.style.fontFamily = currentFuente === customFontFamily ? customFontFamily : currentFuente;
-    previewCedula.style.fontFamily = currentFuente === customFontFamily ? customFontFamily : currentFuente;
+    previewNombre.style.fontFamily = currentFuente;
+    previewCedula.style.fontFamily = currentFuente;
     previewNombre.style.fontSize = currentTamano + 'px';
     previewCedula.style.fontSize = Math.max(12, currentTamano - 14) + 'px';
     previewNombre.style.color = currentColor;
@@ -258,41 +256,84 @@ function applyPreview() {
     if (sCedulaY) sCedulaY.addEventListener(ev, () => { currentCedulaY = parseFloat(sCedulaY.value); applyPreview(); });
 });
 applyPreview();
-function ensureCustomFontCss() {
-    if (!customFontDataUrl) return;
-    const id = 'gdc-custom-font-style';
+function injectFontCss(family, dataUrl, format) {
+    const id = `gdc-font-${family}`;
     if (document.getElementById(id)) return;
     const style = document.createElement('style');
     style.id = id;
-    style.textContent = `@font-face { font-family: '${customFontFamily}'; src: url(${customFontDataUrl}) format('${customFontFormat}'); font-weight: normal; font-style: normal; }`;
+    style.textContent = `@font-face { font-family: '${family}'; src: url(${dataUrl}) format('${format}'); font-weight: normal; font-style: normal; }`;
     document.head.appendChild(style);
-    if (document.fonts && document.fonts.load) { document.fonts.load('16px ' + customFontFamily).then(applyPreview).catch(()=>{}); }
+    if (document.fonts && document.fonts.load) { document.fonts.load('16px ' + family).then(applyPreview).catch(()=>{}); }
 }
-function ensureCustomFontOption() {
+function addFontOption(family) {
     if (!selectFuente) return;
-    if ([...selectFuente.options].some(o => o.value === customFontFamily)) return;
+    if ([...selectFuente.options].some(o => o.value === family)) return;
     const opt = document.createElement('option');
-    opt.value = customFontFamily;
-    opt.textContent = 'Personalizada';
+    opt.value = family;
+    opt.textContent = family;
     selectFuente.appendChild(opt);
+    updateFontsInfo();
+}
+function persistFonts() { localStorage.setItem(FONTS_KEY, JSON.stringify(fontsStore)); }
+function loadFontsFromStorage() {
+    try {
+        const raw = localStorage.getItem(FONTS_KEY);
+        if (!raw) return;
+        fontsStore = JSON.parse(raw) || {};
+        Object.keys(fontsStore).forEach(f => { injectFontCss(f, fontsStore[f].dataUrl, fontsStore[f].format); addFontOption(f); });
+        updateFontsInfo();
+    } catch {}
+}
+async function ensureLeagueSpartanDefault() {
+    if (fontsStore['LeagueSpartan']) { currentFuente = 'LeagueSpartan'; applyPreview(); return; }
+    try {
+        const url = 'https://raw.githubusercontent.com/google/fonts/main/ofl/leaguespartan/LeagueSpartan-Regular.ttf';
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const blob = await res.blob();
+        const reader = new FileReader();
+        reader.onload = () => {
+            const dataUrl = reader.result;
+            const base64 = String(dataUrl).split(',')[1];
+            const family = 'LeagueSpartan';
+            const format = 'truetype';
+            const vfsName = 'LeagueSpartan.ttf';
+            fontsStore[family] = { dataUrl, base64, format, vfsName };
+            persistFonts();
+            injectFontCss(family, dataUrl, format);
+            addFontOption(family);
+            currentFuente = family;
+            applyPreview();
+        };
+        reader.readAsDataURL(blob);
+    } catch {}
+}
+function updateFontsInfo() {
+    if (!fontsLoadedInfo) return;
+    const names = Object.keys(fontsStore);
+    fontsLoadedInfo.textContent = names.length ? `Fuentes cargadas: ${names.join(', ')}` : '';
 }
 if (inputFont) inputFont.addEventListener('change', () => {
-    const file = inputFont.files && inputFont.files[0];
-    if (!file) return;
-    const readerDataUrl = new FileReader();
-    readerDataUrl.onload = () => {
-        customFontDataUrl = readerDataUrl.result;
-        const base64 = String(customFontDataUrl).split(',')[1];
-        customFontBase64 = base64;
-        const ext = (file.name.split('.').pop() || '').toLowerCase();
-        customFontFormat = ext === 'otf' ? 'opentype' : 'truetype';
-        localStorage.setItem('gdc_font', JSON.stringify({ dataUrl: customFontDataUrl, base64: customFontBase64, format: customFontFormat }));
-        ensureCustomFontCss();
-        ensureCustomFontOption();
-        currentFuente = customFontFamily;
-        applyPreview();
-    };
-    readerDataUrl.readAsDataURL(file);
+    const files = inputFont.files ? Array.from(inputFont.files) : [];
+    if (!files.length) return;
+    files.forEach(file => {
+        const family = (file.name.replace(/\.[^.]+$/, '') || 'Personalizada').replace(/[^A-Za-z0-9_-]/g,'_');
+        const readerDataUrl = new FileReader();
+        readerDataUrl.onload = () => {
+            const dataUrl = readerDataUrl.result;
+            const base64 = String(dataUrl).split(',')[1];
+            const ext = (file.name.split('.').pop() || '').toLowerCase();
+            const format = ext === 'otf' ? 'opentype' : 'truetype';
+            const vfsName = `${family}.${ext === 'otf' ? 'otf' : 'ttf'}`;
+            fontsStore[family] = { dataUrl, base64, format, vfsName };
+            persistFonts();
+            injectFontCss(family, dataUrl, format);
+            addFontOption(family);
+            currentFuente = family;
+            applyPreview();
+        };
+        readerDataUrl.readAsDataURL(file);
+    });
 });
 const btnGuardarDiseno = document.getElementById('btn-guardar-diseno');
 if (btnGuardarDiseno) btnGuardarDiseno.addEventListener('click', () => {
@@ -351,12 +392,14 @@ if (btnGuardarLanding) btnGuardarLanding.addEventListener('click', () => {
 const btnExportConfig = document.getElementById('btn-export-config');
 const inputConfig = document.getElementById('input-config');
 function exportConfig() {
+    const f = fontsStore[currentFuente];
     const cfg = {
         design: { nombreX: currentNombreX, nombreY: currentNombreY, cedulaX: currentCedulaX, cedulaY: currentCedulaY, fuente: currentFuente, tamano: currentTamano, color: currentColor },
         bg: bgDataUrl || null,
-        font: customFontDataUrl ? { dataUrl: customFontDataUrl, base64: customFontBase64, format: customFontFormat } : null,
+        font: f ? { family: currentFuente, dataUrl: f.dataUrl, base64: f.base64, format: f.format } : null,
         csv: localStorage.getItem('gdc_csv') || null,
-        landing: JSON.parse(localStorage.getItem('gdc_landing') || '{}')
+        landing: JSON.parse(localStorage.getItem('gdc_landing') || '{}'),
+        eventTitle: EVENTO_TITULO
     };
     const blob = new Blob([JSON.stringify(cfg)], { type: 'application/json' });
     const a = document.createElement('a');
@@ -368,9 +411,10 @@ function exportConfig() {
 function importConfig(obj) {
     try {
         if (obj.bg) { bgDataUrl = obj.bg; localStorage.setItem('gdc_bg', bgDataUrl); if (zonaCalibracion) zonaCalibracion.style.backgroundImage = `url('${bgDataUrl}')`; }
-        if (obj.font && obj.font.dataUrl && obj.font.base64) { customFontDataUrl = obj.font.dataUrl; customFontBase64 = obj.font.base64; customFontFormat = obj.font.format || 'truetype'; localStorage.setItem('gdc_font', JSON.stringify(obj.font)); ensureCustomFontCss(); ensureCustomFontOption(); }
+        if (obj.font && obj.font.dataUrl && obj.font.base64 && obj.font.family) { fontsStore[obj.font.family] = { dataUrl: obj.font.dataUrl, base64: obj.font.base64, format: obj.font.format || 'truetype', vfsName: `${obj.font.family}.ttf` }; persistFonts(); injectFontCss(obj.font.family, obj.font.dataUrl, obj.font.format || 'truetype'); addFontOption(obj.font.family); currentFuente = obj.font.family; }
         if (obj.csv) { localStorage.setItem('gdc_csv', obj.csv); Papa.parse(obj.csv, { header: true, skipEmptyLines: true, complete: r => { participantesData = r.data; } }); }
         if (obj.design) { localStorage.setItem('gdc_cfg', JSON.stringify(obj.design)); currentNombreX = obj.design.nombreX ?? currentNombreX; currentNombreY = obj.design.nombreY ?? currentNombreY; currentCedulaX = obj.design.cedulaX ?? currentCedulaX; currentCedulaY = obj.design.cedulaY ?? currentCedulaY; currentFuente = obj.design.fuente ?? currentFuente; currentTamano = obj.design.tamano ?? currentTamano; currentColor = obj.design.color ?? currentColor; }
+        if (obj.eventTitle) { EVENTO_TITULO = obj.eventTitle; const t = document.getElementById('titulo-evento'); if (t) t.textContent = `Descarga tu Certificado para el evento: ${EVENTO_TITULO}`; }
         if (obj.landing) { localStorage.setItem('gdc_landing', JSON.stringify(obj.landing)); aplicarLandingDesdeStorage(); }
         applyPreview();
     } catch {}
@@ -383,3 +427,24 @@ if (inputConfig) inputConfig.addEventListener('change', () => {
     r.onload = () => { try { const obj = JSON.parse(r.result); importConfig(obj); } catch {} };
     r.readAsText(f);
 });
+const subslugInput = document.getElementById('subslug');
+const subEventTitleInput = document.getElementById('sub-event-title');
+const subStatus = document.getElementById('sub-status');
+const subList = document.getElementById('sub-list');
+const btnSaveLocalSub = document.getElementById('btn-save-local-sub');
+const btnPublishSub = document.getElementById('btn-publish-sub');
+const btnOpenLink = document.getElementById('btn-open-link');
+const ghOwnerInput = document.getElementById('gh-owner');
+const ghRepoInput = document.getElementById('gh-repo');
+const ghTokenInput = document.getElementById('gh-token');
+function base64EncodeUtf8(str){return btoa(unescape(encodeURIComponent(str)))}
+function getCurrentSlug(){const parts=window.location.pathname.split('/').filter(Boolean); if (parts.length>=2) return parts[1]; const urlParams=new URLSearchParams(window.location.search); return urlParams.get('site')||''}
+function loadGithubSettings(){try{const raw=localStorage.getItem('gdc_github'); if(!raw) return; const o=JSON.parse(raw); if(ghOwnerInput) ghOwnerInput.value=o.owner||'PLAGOCORP'; if(ghRepoInput) ghRepoInput.value=o.repo||'GDC'; if(ghTokenInput) ghTokenInput.value=o.token||'';}catch{}}
+function saveGithubSettings(){const o={owner: ghOwnerInput?ghOwnerInput.value:'PLAGOCORP', repo: ghRepoInput?ghRepoInput.value:'GDC', token: ghTokenInput?ghTokenInput.value:''}; localStorage.setItem('gdc_github', JSON.stringify(o));}
+function updateSubList(){fetch(`configs/index.json`).then(r=>r.ok?r.json():{slugs:[]}).then(idx=>{subList.innerHTML=''; (idx.slugs||[]).forEach(s=>{const li=document.createElement('li'); li.textContent=s; subList.appendChild(li);});}).catch(()=>{})}
+function buildConfigObject(){const f=fontsStore[currentFuente];return{design:{nombreX:currentNombreX,nombreY:currentNombreY,cedulaX:currentCedulaX,cedulaY:currentCedulaY,fuente:currentFuente,tamano:currentTamano,color:currentColor},bg:bgDataUrl||null,font:f?{family:currentFuente,dataUrl:f.dataUrl,base64:f.base64,format:f.format}:null,csv:localStorage.getItem('gdc_csv')||null,landing:JSON.parse(localStorage.getItem('gdc_landing')||'{}'),eventTitle:subEventTitleInput?subEventTitleInput.value:EVENTO_TITULO}}
+if (btnSaveLocalSub) btnSaveLocalSub.addEventListener('click', ()=>{const slug=subslugInput.value.trim(); if(!slug){subStatus.textContent='Slug requerido'; return;} const mKey='gdc_sub_configs'; const m=JSON.parse(localStorage.getItem(mKey)||'{}'); m[slug]=buildConfigObject(); localStorage.setItem(mKey, JSON.stringify(m)); subStatus.textContent='Guardado local';});
+async function githubApi(owner,repo,path,method,payload){saveGithubSettings(); const token=ghTokenInput?ghTokenInput.value:''; const url=`https://api.github.com/repos/${owner}/${repo}/contents/${path}`; const headers={Authorization:`token ${token}`,'Accept':'application/vnd.github+json'}; if(method==='GET'){const r=await fetch(url+`?ref=gh-pages`,{headers}); return r.ok?await r.json():null;} const body=JSON.stringify(payload); const r=await fetch(url,{method:'PUT',headers:{...headers,'Content-Type':'application/json'},body}); return await r.json()}
+if (btnPublishSub) btnPublishSub.addEventListener('click', async ()=>{const slug=subslugInput.value.trim(); if(!slug){subStatus.textContent='Slug requerido'; return;} const owner=ghOwnerInput.value.trim(); const repo=ghRepoInput.value.trim(); const cfg=buildConfigObject(); const content=base64EncodeUtf8(JSON.stringify(cfg)); let sha=null; const existing=await githubApi(owner,repo,`configs/${slug}.json`,'GET'); if(existing&&existing.sha) sha=existing.sha; const res=await githubApi(owner,repo,`configs/${slug}.json`,'PUT',{message:`Publish config ${slug}`,content,branch:'gh-pages',sha}); const idxExisting=await githubApi(owner,repo,`configs/index.json`,'GET'); let idx={slugs:[]}, idxSha=null; if(idxExisting&&idxExisting.sha){try{idx=JSON.parse(atob(idxExisting.content)); idxSha=idxExisting.sha;}catch{}} if(!idx.slugs.includes(slug)) idx.slugs.push(slug); const idxContent=base64EncodeUtf8(JSON.stringify(idx)); await githubApi(owner,repo,`configs/index.json`,'PUT',{message:`Update index`,content:idxContent,branch:'gh-pages',sha:idxSha}); subStatus.textContent=`Publicado: https://${owner.toLowerCase()}.github.io/${repo}/${slug}`; updateSubList();});
+if (btnOpenLink) btnOpenLink.addEventListener('click', ()=>{const slug=subslugInput.value.trim(); const owner=ghOwnerInput.value.trim(); const repo=ghRepoInput.value.trim(); if(!slug){subStatus.textContent='Slug requerido'; return;} const url=`https://${owner.toLowerCase()}.github.io/${repo}/${slug}`; window.open(url, '_blank');});
+loadGithubSettings(); updateSubList();

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GDC - Generación de Certificados</title>
     <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 </head>
@@ -24,6 +25,7 @@
             <button data-tab="diseno" class="tab-btn active">Diseño</button>
             <button data-tab="datos" class="tab-btn">Base de Datos</button>
             <button data-tab="landing" class="tab-btn">Landing</button>
+            <button data-tab="subsitios" class="tab-btn">Subsitios</button>
             <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
                 <button id="btn-export-config" class="tab-btn">Exportar Config</button>
                 <label class="tab-btn" style="display:inline-block; position:relative; overflow:hidden;">
@@ -55,8 +57,9 @@
                             <option value="times">Times</option>
                             <option value="courier">Courier</option>
                         </select>
-                        <label>Subir fuente personalizada (.ttf/.otf)</label>
-                        <input type="file" id="input-font" accept=".ttf,.otf">
+                        <label>Subir fuentes (.ttf/.otf)</label>
+                        <input type="file" id="input-font" accept=".ttf,.otf" multiple>
+                        <small id="fonts-loaded-info"></small>
                         <label>Tamaño</label>
                         <input type="number" id="input-tamano" min="8" max="72" value="28">
                         <label>Color</label>
@@ -97,6 +100,34 @@
                 <label>Logo</label>
                 <input type="file" id="input-logo" accept="image/*">
                 <button id="btn-guardar-landing">Guardar Landing</button>
+            </section>
+            <section id="tab-subsitios" class="tab-section">
+                <div class="row">
+                    <div class="col">
+                        <h3>Subsitio</h3>
+                        <label>Slug</label>
+                        <input type="text" id="subslug" placeholder="carreramujeres">
+                        <label>Título del evento</label>
+                        <input type="text" id="sub-event-title" placeholder="Mujeres en Movimiento">
+                        <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+                            <button id="btn-save-local-sub">Guardar en Local</button>
+                            <button id="btn-publish-sub">Publicar en GitHub</button>
+                            <button id="btn-open-link">Abrir enlace</button>
+                        </div>
+                    </div>
+                    <div class="col">
+                        <h3>GitHub</h3>
+                        <label>Owner</label>
+                        <input type="text" id="gh-owner" value="PLAGOCORP">
+                        <label>Repo</label>
+                        <input type="text" id="gh-repo" value="GDC">
+                        <label>Token</label>
+                        <input type="password" id="gh-token" placeholder="ghp_...">
+                        <p id="sub-status"></p>
+                        <h4>Subsitios existentes</h4>
+                        <ul id="sub-list"></ul>
+                    </div>
+                </div>
             </section>
         </div>
     </div>
