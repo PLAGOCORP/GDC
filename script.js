@@ -127,10 +127,11 @@ function generarCertificado(nombre, cedula) {
         unit: PDF_UNITS,
         format: PDF_FORMAT
     });
-if (fontsStore[currentFuente] && fontsStore[currentFuente].base64) {
+    if (fontsStore[currentFuente] && fontsStore[currentFuente].base64) {
         try {
             const f = fontsStore[currentFuente];
-            doc.addFileToVFS(f.vfsName, f.base64);
+            const binary = atob(f.base64);
+            doc.addFileToVFS(f.vfsName, binary);
             doc.addFont(f.vfsName, currentFuente, 'normal');
         } catch (e) { console.warn('No se pudo registrar la fuente personalizada en jsPDF:', e); }
     }
@@ -139,29 +140,29 @@ if (fontsStore[currentFuente] && fontsStore[currentFuente].base64) {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.src = bgDataUrl || 'assets/certificado_base.jpg';
-    img.onload = function() {
-        try {
-            doc.addImage(img, 'JPEG', 0, 0, docWidth, docHeight);
-        } catch (e) {
-            console.warn('No se pudo agregar la imagen base:', e);
-        }
-        doc.setFont(currentFuente, 'normal');
-        doc.setFontSize(currentTamano);
-        const c = hexToRgb(currentColor);
-        doc.setTextColor(c.r, c.g, c.b);
-        doc.text(nombre, currentNombreX, currentNombreY, { align: 'center' });
-        doc.text(`CC: ${cedula}`, currentCedulaX, currentCedulaY, { align: 'center' });
+img.onload = function() {
+    try {
+        doc.addImage(img, 'JPEG', 0, 0, docWidth, docHeight);
+    } catch (e) {
+        console.warn('No se pudo agregar la imagen base:', e);
+    }
+    try { doc.setFont(currentFuente, 'normal'); } catch(e) { doc.setFont('helvetica', 'normal'); }
+    doc.setFontSize(currentTamano);
+    const c = hexToRgb(currentColor);
+    doc.setTextColor(c.r, c.g, c.b);
+    doc.text(nombre, currentNombreX, currentNombreY, { align: 'center' });
+    doc.text(`CC: ${cedula}`, currentCedulaX, currentCedulaY, { align: 'center' });
         doc.save(`Certificado_${EVENTO_TITULO.replace(/\s/g, '')}_${cedula}.pdf`);
         const feedback = document.getElementById('mensaje-feedback');
         if (feedback) feedback.textContent = `✅ Certificado para ${nombre} generado. Verifica tu carpeta de descargas.`;
     };
-    img.onerror = function() {
-        doc.setFont(currentFuente, 'normal');
-        doc.setFontSize(currentTamano);
-        const c = hexToRgb(currentColor);
-        doc.setTextColor(c.r, c.g, c.b);
-        doc.text(nombre, currentNombreX, currentNombreY, { align: 'center' });
-        doc.text(`CC: ${cedula}`, currentCedulaX, currentCedulaY, { align: 'center' });
+img.onerror = function() {
+    try { doc.setFont(currentFuente, 'normal'); } catch(e) { doc.setFont('helvetica', 'normal'); }
+    doc.setFontSize(currentTamano);
+    const c = hexToRgb(currentColor);
+    doc.setTextColor(c.r, c.g, c.b);
+    doc.text(nombre, currentNombreX, currentNombreY, { align: 'center' });
+    doc.text(`CC: ${cedula}`, currentCedulaX, currentCedulaY, { align: 'center' });
         doc.save(`Certificado_${EVENTO_TITULO.replace(/\s/g, '')}_${cedula}.pdf`);
         const feedback = document.getElementById('mensaje-feedback');
         if (feedback) feedback.textContent = `⚠️ Imagen base no encontrada. Certificado generado sin fondo.`;
