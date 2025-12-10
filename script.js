@@ -392,6 +392,10 @@ if (btnGuardarLanding) btnGuardarLanding.addEventListener('click', () => {
 });
 const btnExportConfig = document.getElementById('btn-export-config');
 const inputConfig = document.getElementById('input-config');
+const btnSaveAll = document.getElementById('btn-save-all');
+const saveProgress = document.getElementById('save-progress');
+const saveProgressBar = document.getElementById('save-progress-bar');
+const saveStatus = document.getElementById('save-status');
 function exportConfig() {
     const f = fontsStore[currentFuente];
     const cfg = {
@@ -428,6 +432,35 @@ if (inputConfig) inputConfig.addEventListener('change', () => {
     r.onload = () => { try { const obj = JSON.parse(r.result); importConfig(obj); } catch {} };
     r.readAsText(f);
 });
+if (btnSaveAll) btnSaveAll.addEventListener('click', async () => {
+    if (saveStatus) saveStatus.textContent = '';
+    function step(p){ if (saveProgressBar) saveProgressBar.style.width = p + '%'; }
+    step(5);
+    persistFonts();
+    step(15);
+    localStorage.setItem('gdc_cfg', JSON.stringify({ nombreX: currentNombreX, nombreY: currentNombreY, cedulaX: currentCedulaX, cedulaY: currentCedulaY, fuente: currentFuente, tamano: currentTamano, color: currentColor }));
+    step(35);
+    const landingCfg = { bgColor: getComputedStyle(document.documentElement).getPropertyValue('--background-color').trim() || (document.documentElement.style.getPropertyValue('--background-color')||null), primaryColor: getComputedStyle(document.documentElement).getPropertyValue('--primary-color').trim() || null, textColor: getComputedStyle(document.documentElement).getPropertyValue('--text-color').trim() || null, logo: (document.getElementById('logo-evento') && document.getElementById('logo-evento').src) ? document.getElementById('logo-evento').src : null };
+    localStorage.setItem('gdc_landing', JSON.stringify(landingCfg));
+    step(55);
+    if (bgDataUrl) localStorage.setItem('gdc_bg', bgDataUrl);
+    step(65);
+    if (participantesData && participantesData.length) {
+        try {
+            const header = 'CEDULA,NOMBRE_COMPLETO\n';
+            const body = participantesData.map(p => `${p.CEDULA},${p.NOMBRE_COMPLETO}`).join('\n');
+            localStorage.setItem('gdc_csv', header + body);
+        } catch {}
+    }
+    step(75);
+    const mKey='gdc_sub_configs';
+    const m=JSON.parse(localStorage.getItem(mKey)||'{}');
+    if (subslugInput && subslugInput.value.trim()) { m[subslugInput.value.trim()] = buildConfigObject(); localStorage.setItem(mKey, JSON.stringify(m)); }
+    step(90);
+    await new Promise(res => setTimeout(res, 400));
+    step(100);
+    if (saveStatus) { saveStatus.textContent = 'Guardado correctamente'; saveStatus.classList.add('save-success'); }
+});
 const subslugInput = document.getElementById('subslug');
 const subEventTitleInput = document.getElementById('sub-event-title');
 const subStatus = document.getElementById('sub-status');
@@ -442,7 +475,48 @@ function base64EncodeUtf8(str){return btoa(unescape(encodeURIComponent(str)))}
 function getCurrentSlug(){const parts=window.location.pathname.split('/').filter(Boolean); if (parts.length>=2) return parts[1]; const urlParams=new URLSearchParams(window.location.search); return urlParams.get('site')||''}
 function loadGithubSettings(){try{const raw=localStorage.getItem('gdc_github'); if(!raw) return; const o=JSON.parse(raw); if(ghOwnerInput) ghOwnerInput.value=o.owner||'PLAGOCORP'; if(ghRepoInput) ghRepoInput.value=o.repo||'GDC'; if(ghTokenInput) ghTokenInput.value=o.token||'';}catch{}}
 function saveGithubSettings(){const o={owner: ghOwnerInput?ghOwnerInput.value:'PLAGOCORP', repo: ghRepoInput?ghRepoInput.value:'GDC', token: ghTokenInput?ghTokenInput.value:''}; localStorage.setItem('gdc_github', JSON.stringify(o));}
-function updateSubList(){fetch(`configs/index.json`).then(r=>r.ok?r.json():{slugs:[]}).then(idx=>{subList.innerHTML=''; (idx.slugs||[]).forEach(s=>{const li=document.createElement('li'); li.textContent=s; subList.appendChild(li);});}).catch(()=>{})}
+function updateSubList(){
+    const parts=(window.location.pathname||'/').split('/').filter(Boolean); const base='/' + (parts[0]||'');
+    fetch(`${base}/configs/index.json`).then(r=>r.ok?r.json():{slugs:[]}).then(idx=>{
+        const localM=JSON.parse(localStorage.getItem('gdc_sub_configs')||'{}');
+        const set=new Set([...(idx.slugs||[]), ...Object.keys(localM)]);
+        subList.innerHTML='';
+        Array.from(set).forEach(s=>{
+            const li=document.createElement('li');
+            const btnEdit=document.createElement('button'); btnEdit.textContent='Editar'; btnEdit.onclick=()=>loadSlugToEditor(s);
+            const btnOpen=document.createElement('button'); btnOpen.textContent='Abrir'; btnOpen.onclick=()=>{const owner=ghOwnerInput.value.trim(); const repo=ghRepoInput.value.trim(); window.open(`https://${owner.toLowerCase()}.github.io/${repo}/${s}`,'_blank');};
+            const btnDelLocal=document.createElement('button'); btnDelLocal.textContent='Eliminar Local'; btnDelLocal.onclick=()=>{const mKey='gdc_sub_configs'; const m=JSON.parse(localStorage.getItem(mKey)||'{}'); delete m[s]; localStorage.setItem(mKey, JSON.stringify(m)); updateSubList();};
+            const btnDelGh=document.createElement('button'); btnDelGh.textContent='Eliminar GitHub'; btnDelGh.onclick=()=>deleteSlugOnGithub(s);
+            li.textContent=s+ ' ';
+            li.appendChild(btnEdit); li.appendChild(btnOpen); li.appendChild(btnDelLocal); li.appendChild(btnDelGh);
+            subList.appendChild(li);
+        });
+    }).catch(()=>{})
+}
+function loadSlugToEditor(slug){
+    const parts=(window.location.pathname||'/').split('/').filter(Boolean); const base='/' + (parts[0]||'');
+    fetch(`${base}/configs/${slug}.json`).then(r=>r.ok?r.json():null).then(cfg=>{ if(!cfg){const localM=JSON.parse(localStorage.getItem('gdc_sub_configs')||'{}'); cfg=localM[slug];}
+        if(!cfg){ subStatus.textContent='No encontrado'; return; }
+        subslugInput.value=slug; subEventTitleInput.value=cfg.eventTitle||EVENTO_TITULO; importConfig(cfg);
+    }).catch(()=>{ subStatus.textContent='No encontrado'; });
+}
+async function deleteSlugOnGithub(slug){
+    const owner=ghOwnerInput.value.trim(); const repo=ghRepoInput.value.trim(); const token=ghTokenInput.value.trim();
+    const url=`https://api.github.com/repos/${owner}/${repo}/contents/configs/${slug}.json`;
+    const get=await fetch(url+`?ref=gh-pages`,{headers:{Authorization:`token ${token}`,'Accept':'application/vnd.github+json'}});
+    if(!get.ok){ subStatus.textContent='No existe en GitHub'; return; }
+    const obj=await get.json(); const sha=obj.sha;
+    const del=await fetch(url,{method:'DELETE',headers:{Authorization:`token ${token}`,'Accept':'application/vnd.github+json','Content-Type':'application/json'},body:JSON.stringify({message:`Delete ${slug}`,sha,branch:'gh-pages'})});
+    if(del.ok){
+        const idxUrl=`https://api.github.com/repos/${owner}/${repo}/contents/configs/index.json`;
+        const idxGet=await fetch(idxUrl+`?ref=gh-pages`,{headers:{Authorization:`token ${token}`,'Accept':'application/vnd.github+json'}});
+        let idxSha=null, idx={slugs:[]};
+        if(idxGet.ok){const j=await idxGet.json(); idxSha=j.sha; try{ idx=JSON.parse(atob(j.content.replace(/\n/g,''))); }catch{}}
+        idx.slugs = (idx.slugs||[]).filter(x=>x!==slug);
+        const idxPut=await fetch(idxUrl,{method:'PUT',headers:{Authorization:`token ${token}`,'Accept':'application/vnd.github+json','Content-Type':'application/json'},body:JSON.stringify({message:`Update index remove ${slug}`,content:base64EncodeUtf8(JSON.stringify(idx)),branch:'gh-pages',sha:idxSha})});
+        if(idxPut.ok){ subStatus.textContent='Eliminado en GitHub'; updateSubList(); }
+    } else { subStatus.textContent='Error al eliminar en GitHub'; }
+}
 function buildConfigObject(){const f=fontsStore[currentFuente];return{design:{nombreX:currentNombreX,nombreY:currentNombreY,cedulaX:currentCedulaX,cedulaY:currentCedulaY,fuente:currentFuente,tamano:currentTamano,color:currentColor},bg:bgDataUrl||null,font:f?{family:currentFuente,dataUrl:f.dataUrl,base64:f.base64,format:f.format}:null,csv:localStorage.getItem('gdc_csv')||null,landing:JSON.parse(localStorage.getItem('gdc_landing')||'{}'),eventTitle:subEventTitleInput?subEventTitleInput.value:EVENTO_TITULO}}
 if (btnSaveLocalSub) btnSaveLocalSub.addEventListener('click', ()=>{const slug=subslugInput.value.trim(); if(!slug){subStatus.textContent='Slug requerido'; return;} const mKey='gdc_sub_configs'; const m=JSON.parse(localStorage.getItem(mKey)||'{}'); m[slug]=buildConfigObject(); localStorage.setItem(mKey, JSON.stringify(m)); subStatus.textContent='Guardado local';});
 async function githubApi(owner,repo,path,method,payload){saveGithubSettings(); const token=ghTokenInput?ghTokenInput.value:''; const url=`https://api.github.com/repos/${owner}/${repo}/contents/${path}`; const headers={Authorization:`token ${token}`,'Accept':'application/vnd.github+json'}; if(method==='GET'){const r=await fetch(url+`?ref=gh-pages`,{headers}); return r.ok?await r.json():null;} const body=JSON.stringify(payload); const r=await fetch(url,{method:'PUT',headers:{...headers,'Content-Type':'application/json'},body}); return await r.json()}

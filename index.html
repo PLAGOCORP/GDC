@@ -27,6 +27,11 @@
             <button data-tab="landing" class="tab-btn">Landing</button>
             <button data-tab="subsitios" class="tab-btn">Subsitios</button>
             <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+                <button id="btn-save-all" class="tab-btn">Guardar Todo</button>
+                <div id="save-progress" style="width:160px; height:8px; background:#eee; border-radius:6px; overflow:hidden;">
+                    <div id="save-progress-bar" style="height:100%; width:0; background:#28a745;"></div>
+                </div>
+                <span id="save-status" style="min-width:180px; color:#28a745;"></span>
                 <button id="btn-export-config" class="tab-btn">Exportar Config</button>
                 <label class="tab-btn" style="display:inline-block; position:relative; overflow:hidden;">
                     Importar Config
