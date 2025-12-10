@@ -49,6 +49,9 @@ window.onload = function() {
     const slug = getCurrentSlug();
     const cfgUrl = slug ? `configs/${slug}.json` : 'config.json';
     try {
+        const localM = JSON.parse(localStorage.getItem('gdc_sub_configs')||'{}');
+        const localCfg = slug ? localM[slug] : null;
+        if (localCfg) { importConfig(localCfg); }
         fetch(cfgUrl).then(r => r.ok ? r.json() : null).then(cfg => {
             if (!cfg) return;
             if (cfg.bg) { bgDataUrl = cfg.bg; localStorage.setItem('gdc_bg', bgDataUrl); const z = document.getElementById('zona-calibracion'); if (z) z.style.backgroundImage = `url('${bgDataUrl}')`; }
@@ -92,7 +95,7 @@ function cambiarVista(vista) {
 }
 document.addEventListener('keydown', (e) => {
     if (e.key === 'A' || e.key === 'a') {
-        ensureAdminAuth(() => cambiarVista('admin'));
+        ensureAdminAuth(() => { cambiarVista('admin'); ensureAdminSlugContext(); });
         e.preventDefault();
     }
 });
@@ -103,7 +106,7 @@ function ensureAdminAuth(cb) {
     const v = prompt('Clave de administrador');
     if (v === ADMIN_PASSWORD) { sessionStorage.setItem('gdc_admin_ok','1'); cb(); } else { alert('Clave incorrecta'); }
 }
-if (adminBtn) adminBtn.addEventListener('click', () => ensureAdminAuth(() => cambiarVista('admin')));
+if (adminBtn) adminBtn.addEventListener('click', () => ensureAdminAuth(() => { cambiarVista('admin'); ensureAdminSlugContext(); }));
 document.getElementById('formularioCertificado').addEventListener('submit', function(e) {
     e.preventDefault();
     const cedulaInput = document.getElementById('cedula').value.trim();
@@ -455,11 +458,27 @@ if (btnSaveAll) btnSaveAll.addEventListener('click', async () => {
     step(75);
     const mKey='gdc_sub_configs';
     const m=JSON.parse(localStorage.getItem(mKey)||'{}');
-    if (subslugInput && subslugInput.value.trim()) { m[subslugInput.value.trim()] = buildConfigObject(); localStorage.setItem(mKey, JSON.stringify(m)); }
+    if (!subslugInput || !subslugInput.value.trim()) { if (saveStatus) { saveStatus.textContent = 'Slug requerido'; saveStatus.classList.remove('save-success'); } return; }
+    const slug=subslugInput.value.trim();
+    m[slug] = buildConfigObject();
+    localStorage.setItem(mKey, JSON.stringify(m));
+    setLastSlug(slug);
     step(90);
+    const owner=ghOwnerInput?ghOwnerInput.value.trim():'';
+    const repo=ghRepoInput?ghRepoInput.value.trim():'';
+    const token=ghTokenInput?ghTokenInput.value.trim():'';
+    if (owner && repo && token) {
+        const cfg=buildConfigObject(); const content=base64EncodeUtf8(JSON.stringify(cfg));
+        let sha=null; const existing=await githubApi(owner,repo,`configs/${slug}.json`,'GET'); if(existing&&existing.sha) sha=existing.sha;
+        await githubApi(owner,repo,`configs/${slug}.json`,'PUT',{message:`SaveAll ${slug}`,content,branch:'gh-pages',sha});
+        const idxExisting=await githubApi(owner,repo,`configs/index.json`,'GET'); let idx={slugs:[]}, idxSha=null; if(idxExisting&&idxExisting.sha){try{idx=JSON.parse(atob(idxExisting.content)); idxSha=idxExisting.sha;}catch{}}
+        if(!idx.slugs.includes(slug)) idx.slugs.push(slug);
+        const idxContent=base64EncodeUtf8(JSON.stringify(idx)); await githubApi(owner,repo,`configs/index.json`,'PUT',{message:`Update index`,content:idxContent,branch:'gh-pages',sha:idxSha});
+    }
     await new Promise(res => setTimeout(res, 400));
     step(100);
     if (saveStatus) { saveStatus.textContent = 'Guardado correctamente'; saveStatus.classList.add('save-success'); }
+    updateSubList();
 });
 const subslugInput = document.getElementById('subslug');
 const subEventTitleInput = document.getElementById('sub-event-title');
@@ -473,6 +492,9 @@ const ghRepoInput = document.getElementById('gh-repo');
 const ghTokenInput = document.getElementById('gh-token');
 function base64EncodeUtf8(str){return btoa(unescape(encodeURIComponent(str)))}
 function getCurrentSlug(){const parts=window.location.pathname.split('/').filter(Boolean); if (parts.length>=2) return parts[1]; const urlParams=new URLSearchParams(window.location.search); return urlParams.get('site')||''}
+function getLastSlug(){try{return localStorage.getItem('gdc_last_slug')||'';}catch{return ''}}
+function setLastSlug(slug){try{localStorage.setItem('gdc_last_slug', slug||'');}catch{}}
+function ensureAdminSlugContext(){ if (!subslugInput) return; let s=getCurrentSlug()||getLastSlug(); if(!s){ s=prompt('Slug del subsitio')||''; } if(s){ subslugInput.value=s; setLastSlug(s); loadSlugToEditor(s); }}
 function loadGithubSettings(){try{const raw=localStorage.getItem('gdc_github'); if(!raw) return; const o=JSON.parse(raw); if(ghOwnerInput) ghOwnerInput.value=o.owner||'PLAGOCORP'; if(ghRepoInput) ghRepoInput.value=o.repo||'GDC'; if(ghTokenInput) ghTokenInput.value=o.token||'';}catch{}}
 function saveGithubSettings(){const o={owner: ghOwnerInput?ghOwnerInput.value:'PLAGOCORP', repo: ghRepoInput?ghRepoInput.value:'GDC', token: ghTokenInput?ghTokenInput.value:''}; localStorage.setItem('gdc_github', JSON.stringify(o));}
 function updateSubList(){
@@ -494,12 +516,13 @@ function updateSubList(){
     }).catch(()=>{})
 }
 function loadSlugToEditor(slug){
+    const localM=JSON.parse(localStorage.getItem('gdc_sub_configs')||'{}');
+    let cfg=localM[slug];
     const parts=(window.location.pathname||'/').split('/').filter(Boolean); const base='/' + (parts[0]||'');
-    fetch(`${base}/configs/${slug}.json`).then(r=>r.ok?r.json():null).then(cfg=>{ if(!cfg){const localM=JSON.parse(localStorage.getItem('gdc_sub_configs')||'{}'); cfg=localM[slug];}
-        if(!cfg){ subStatus.textContent='No encontrado'; return; }
-        subslugInput.value=slug; subEventTitleInput.value=cfg.eventTitle||EVENTO_TITULO; importConfig(cfg);
-    }).catch(()=>{ subStatus.textContent='No encontrado'; });
+    if (cfg) { subslugInput.value=slug; subEventTitleInput.value=cfg.eventTitle||EVENTO_TITULO; importConfig(cfg); return; }
+    fetch(`${base}/configs/${slug}.json`).then(r=>r.ok?r.json():null).then(rcfg=>{ cfg=rcfg; if(!cfg){ subStatus.textContent='No encontrado'; return; } subslugInput.value=slug; subEventTitleInput.value=cfg.eventTitle||EVENTO_TITULO; importConfig(cfg); }).catch(()=>{ subStatus.textContent='No encontrado'; });
 }
+if (subslugInput) subslugInput.addEventListener('change', ()=>{ const s=subslugInput.value.trim(); if(!s) return; setLastSlug(s); loadSlugToEditor(s); });
 async function deleteSlugOnGithub(slug){
     const owner=ghOwnerInput.value.trim(); const repo=ghRepoInput.value.trim(); const token=ghTokenInput.value.trim();
     const url=`https://api.github.com/repos/${owner}/${repo}/contents/configs/${slug}.json`;
