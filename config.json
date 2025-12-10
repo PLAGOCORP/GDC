@@ -1,0 +1,20 @@
+{
+  "design": {
+    "nombreX": 148.5,
+    "nombreY": 140,
+    "cedulaX": 148.5,
+    "cedulaY": 150,
+    "fuente": "helvetica",
+    "tamano": 28,
+    "color": "#000000"
+  },
+  "bg": null,
+  "font": null,
+  "csv": "CEDULA,NOMBRE_COMPLETO\n1000000000,Juan Pérez García\n2000000000,María López Torres\n3000000000,Carlos Alberto Velez\n",
+  "landing": {
+    "bgColor": "#f4f4f9",
+    "primaryColor": "#0056b3",
+    "textColor": "#333333",
+    "logo": null
+  }
+}

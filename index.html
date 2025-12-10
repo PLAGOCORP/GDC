@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GDC - Generación de Certificados</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+</head>
+<body>
+    <div id="vista-publica" class="contenedor">
+        <img id="logo-evento" alt="Logo" style="display:none; max-height:80px; margin-bottom:10px;" />
+        <h1 id="titulo-evento">Descarga tu Certificado de Participación</h1>
+        <p>Por favor, ingresa tu número de documento para obtener tu certificado.</p>
+        <form id="formularioCertificado">
+            <input type="text" id="cedula" name="cedula" placeholder="Ingresa tu número de cédula" required>
+            <button type="submit">Buscar y Descargar Certificado</button>
+        </form>
+        
+    </div>
+    <div id="vista-admin" class="admin-panel" style="display:none;">
+        <div class="admin-tabs">
+            <button data-tab="diseno" class="tab-btn active">Diseño</button>
+            <button data-tab="datos" class="tab-btn">Base de Datos</button>
+            <button data-tab="landing" class="tab-btn">Landing</button>
+            <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+                <button id="btn-export-config" class="tab-btn">Exportar Config</button>
+                <label class="tab-btn" style="display:inline-block; position:relative; overflow:hidden;">
+                    Importar Config
+                    <input type="file" id="input-config" accept="application/json" style="position:absolute; left:0; top:0; opacity:0; width:100%; height:100%; cursor:pointer;">
+                </label>
+                <button class="admin-close" onclick="cambiarVista('publica')">Cerrar</button>
+            </div>
+        </div>
+        <div class="admin-content">
+            <section id="tab-diseno" class="tab-section active">
+                <div class="row">
+                    <div class="col">
+                        <label>Diseño de fondo</label>
+                        <input type="file" id="input-fondo" accept="image/*">
+                        <div id="zona-calibracion">
+                            <span id="coordenadas">(X: 0mm, Y: 0mm)</span>
+                            <span id="preview-nombre" class="preview-text">Nombre de Prueba</span>
+                            <span id="preview-cedula" class="preview-text">CC: 0000000000</span>
+                        </div>
+                    </div>
+                    <div class="col controls">
+                        <h3>Texto</h3>
+                        <label>Texto de prueba</label>
+                        <input type="text" id="input-texto-prueba" value="Nombre de Prueba">
+                        <label>Fuente</label>
+                        <select id="select-fuente">
+                            <option value="helvetica">Helvetica</option>
+                            <option value="times">Times</option>
+                            <option value="courier">Courier</option>
+                        </select>
+                        <label>Subir fuente personalizada (.ttf/.otf)</label>
+                        <input type="file" id="input-font" accept=".ttf,.otf">
+                        <label>Tamaño</label>
+                        <input type="number" id="input-tamano" min="8" max="72" value="28">
+                        <label>Color</label>
+                        <input type="color" id="input-color" value="#000000">
+                        <div class="grid">
+                            <div>
+                                <h4>Nombre</h4>
+                                <label>X (mm)</label>
+                                <input type="range" id="slider-nombre-x" min="0" max="297" step="0.5" value="148.5">
+                                <label>Y (mm)</label>
+                                <input type="range" id="slider-nombre-y" min="0" max="210" step="0.5" value="140">
+                            </div>
+                            <div>
+                                <h4>Cédula</h4>
+                                <label>X (mm)</label>
+                                <input type="range" id="slider-cedula-x" min="0" max="297" step="0.5" value="148.5">
+                                <label>Y (mm)</label>
+                                <input type="range" id="slider-cedula-y" min="0" max="210" step="0.5" value="150">
+                            </div>
+                        </div>
+                        <button id="btn-guardar-diseno">Guardar Diseño</button>
+                    </div>
+                </div>
+            </section>
+            <section id="tab-datos" class="tab-section">
+                <label>Subir CSV de participantes</label>
+                <input type="file" id="input-csv" accept=".csv">
+                <p id="info-csv"></p>
+                <button id="btn-descargar-csv">Descargar CSV actual</button>
+            </section>
+            <section id="tab-landing" class="tab-section">
+                <label>Color de fondo</label>
+                <input type="color" id="color-fondo" value="#f4f4f9">
+                <label>Color primario</label>
+                <input type="color" id="color-primario" value="#0056b3">
+                <label>Color de texto</label>
+                <input type="color" id="color-texto" value="#333333">
+                <label>Logo</label>
+                <input type="file" id="input-logo" accept="image/*">
+                <button id="btn-guardar-landing">Guardar Landing</button>
+            </section>
+        </div>
+    </div>
+    <button id="admin-btn" class="admin-fab" title="Admin">🛠</button>
+    <script src="script.js"></script>
+</body>
+</html>
