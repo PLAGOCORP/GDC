@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redirigiendo…</title>
+  <script>
+    (function(){
+      var parts = (window.location.pathname || '/').split('/').filter(Boolean);
+      var base = '/' + (parts[0] || '') + '/';
+      var slug = parts[1] || '';
+      if (slug) {
+        window.location.replace(base + '?site=' + encodeURIComponent(slug));
+      } else {
+        window.location.replace(base);
+      }
+    })();
+  </script>
+</head>
+<body></body>
+</html>
