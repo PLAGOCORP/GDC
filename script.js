@@ -95,7 +95,7 @@ function cambiarVista(vista) {
 }
 document.addEventListener('keydown', (e) => {
     if (e.key === 'A' || e.key === 'a') {
-        ensureAdminAuth(() => { cambiarVista('admin'); ensureAdminSlugContext(); });
+        ensureAdminAuth(() => { cambiarVista('admin'); ensureAdminSlugContext(); setAdminSlugRequiredState(); });
         e.preventDefault();
     }
 });
@@ -106,7 +106,7 @@ function ensureAdminAuth(cb) {
     const v = prompt('Clave de administrador');
     if (v === ADMIN_PASSWORD) { sessionStorage.setItem('gdc_admin_ok','1'); cb(); } else { alert('Clave incorrecta'); }
 }
-if (adminBtn) adminBtn.addEventListener('click', () => ensureAdminAuth(() => { cambiarVista('admin'); ensureAdminSlugContext(); }));
+if (adminBtn) adminBtn.addEventListener('click', () => ensureAdminAuth(() => { cambiarVista('admin'); ensureAdminSlugContext(); setAdminSlugRequiredState(); }));
 document.getElementById('formularioCertificado').addEventListener('submit', function(e) {
     e.preventDefault();
     const cedulaInput = document.getElementById('cedula').value.trim();
@@ -204,11 +204,28 @@ function hexToRgb(hex) {
 }
 const tabs = document.querySelectorAll('.tab-btn');
 const sections = { diseno: document.getElementById('tab-diseno'), datos: document.getElementById('tab-datos'), landing: document.getElementById('tab-landing'), subsitios: document.getElementById('tab-subsitios') };
+function setActiveTab(key){ tabs.forEach(b => b.classList.remove('active')); Object.values(sections).forEach(s => s.classList.remove('active')); const btn=[...tabs].find(b=>b.getAttribute('data-tab')===key); if(btn) btn.classList.add('active'); if(sections[key]) sections[key].classList.add('active'); }
+function isSlugSelected(){ return subslugInput && subslugInput.value && subslugInput.value.trim(); }
+function setControlsDisabled(dis){
+    [btnSaveAll, btnGuardarDiseno, btnGuardarLanding, btnSaveLocalSub, btnPublishSub, btnOpenLink].forEach(el => { if (el) el.disabled = !!dis; });
+}
+function setAdminSlugRequiredState(){
+    if (!isSlugSelected()) {
+        if (slugStatusTop) slugStatusTop.textContent = 'Selecciona o crea un slug';
+        setControlsDisabled(true);
+        setActiveTab('subsitios');
+        if (slugInputTop) slugInputTop.focus(); else if (slugSelect) slugSelect.focus();
+    } else {
+        if (slugStatusTop) slugStatusTop.textContent = '';
+        setControlsDisabled(false);
+    }
+}
 tabs.forEach(btn => btn.addEventListener('click', () => {
+    const key = btn.getAttribute('data-tab');
+    if (key !== 'subsitios' && !isSlugSelected()) { setAdminSlugRequiredState(); return; }
     tabs.forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     Object.values(sections).forEach(s => s.classList.remove('active'));
-    const key = btn.getAttribute('data-tab');
     if (sections[key]) sections[key].classList.add('active');
 }));
 const inputFondo = document.getElementById('input-fondo');
@@ -399,6 +416,10 @@ const btnSaveAll = document.getElementById('btn-save-all');
 const saveProgress = document.getElementById('save-progress');
 const saveProgressBar = document.getElementById('save-progress-bar');
 const saveStatus = document.getElementById('save-status');
+const slugSelect = document.getElementById('slug-select');
+const slugInputTop = document.getElementById('slug-input');
+const slugUseBtn = document.getElementById('slug-use-btn');
+const slugStatusTop = document.getElementById('slug-status');
 function exportConfig() {
     const f = fontsStore[currentFuente];
     const cfg = {
@@ -494,7 +515,7 @@ function base64EncodeUtf8(str){return btoa(unescape(encodeURIComponent(str)))}
 function getCurrentSlug(){const parts=window.location.pathname.split('/').filter(Boolean); if (parts.length>=2) return parts[1]; const urlParams=new URLSearchParams(window.location.search); return urlParams.get('site')||''}
 function getLastSlug(){try{return localStorage.getItem('gdc_last_slug')||'';}catch{return ''}}
 function setLastSlug(slug){try{localStorage.setItem('gdc_last_slug', slug||'');}catch{}}
-function ensureAdminSlugContext(){ if (!subslugInput) return; let s=getCurrentSlug()||getLastSlug(); if(!s){ s=prompt('Slug del subsitio')||''; } if(s){ subslugInput.value=s; setLastSlug(s); loadSlugToEditor(s); }}
+function ensureAdminSlugContext(){ if (!subslugInput) return; let s=getCurrentSlug()||getLastSlug(); if(!s){ setAdminSlugRequiredState(); return; } subslugInput.value=s; setLastSlug(s); loadSlugToEditor(s); setAdminSlugRequiredState(); }
 function loadGithubSettings(){try{const raw=localStorage.getItem('gdc_github'); if(!raw) return; const o=JSON.parse(raw); if(ghOwnerInput) ghOwnerInput.value=o.owner||'PLAGOCORP'; if(ghRepoInput) ghRepoInput.value=o.repo||'GDC'; if(ghTokenInput) ghTokenInput.value=o.token||'';}catch{}}
 function saveGithubSettings(){const o={owner: ghOwnerInput?ghOwnerInput.value:'PLAGOCORP', repo: ghRepoInput?ghRepoInput.value:'GDC', token: ghTokenInput?ghTokenInput.value:''}; localStorage.setItem('gdc_github', JSON.stringify(o));}
 function updateSubList(){
@@ -503,6 +524,7 @@ function updateSubList(){
         const localM=JSON.parse(localStorage.getItem('gdc_sub_configs')||'{}');
         const set=new Set([...(idx.slugs||[]), ...Object.keys(localM)]);
         subList.innerHTML='';
+        if (slugSelect) { slugSelect.innerHTML=''; }
         Array.from(set).forEach(s=>{
             const li=document.createElement('li');
             const btnEdit=document.createElement('button'); btnEdit.textContent='Editar'; btnEdit.onclick=()=>loadSlugToEditor(s);
@@ -512,7 +534,9 @@ function updateSubList(){
             li.textContent=s+ ' ';
             li.appendChild(btnEdit); li.appendChild(btnOpen); li.appendChild(btnDelLocal); li.appendChild(btnDelGh);
             subList.appendChild(li);
+            if (slugSelect) { const opt=document.createElement('option'); opt.value=s; opt.textContent=s; slugSelect.appendChild(opt); }
         });
+        const last=getLastSlug(); if (slugSelect && last && [...slugSelect.options].some(o=>o.value===last)) slugSelect.value=last;
     }).catch(()=>{})
 }
 function loadSlugToEditor(slug){
@@ -522,7 +546,8 @@ function loadSlugToEditor(slug){
     if (cfg) { subslugInput.value=slug; subEventTitleInput.value=cfg.eventTitle||EVENTO_TITULO; importConfig(cfg); return; }
     fetch(`${base}/configs/${slug}.json`).then(r=>r.ok?r.json():null).then(rcfg=>{ cfg=rcfg; if(!cfg){ subStatus.textContent='No encontrado'; return; } subslugInput.value=slug; subEventTitleInput.value=cfg.eventTitle||EVENTO_TITULO; importConfig(cfg); }).catch(()=>{ subStatus.textContent='No encontrado'; });
 }
-if (subslugInput) subslugInput.addEventListener('change', ()=>{ const s=subslugInput.value.trim(); if(!s) return; setLastSlug(s); loadSlugToEditor(s); });
+if (subslugInput) subslugInput.addEventListener('change', ()=>{ const s=subslugInput.value.trim(); if(!s){ setAdminSlugRequiredState(); return; } setLastSlug(s); loadSlugToEditor(s); setAdminSlugRequiredState(); });
+if (slugUseBtn) slugUseBtn.addEventListener('click', ()=>{ const sel=slugSelect && slugSelect.value ? slugSelect.value.trim() : ''; const inp=slugInputTop && slugInputTop.value ? slugInputTop.value.trim() : ''; const s=inp || sel; if(!s){ slugStatusTop.textContent='Indica un slug'; setAdminSlugRequiredState(); return;} setLastSlug(s); if (subslugInput) subslugInput.value=s; loadSlugToEditor(s); slugStatusTop.textContent=`Usando: ${s}`; setAdminSlugRequiredState(); setActiveTab('diseno'); });
 async function deleteSlugOnGithub(slug){
     const owner=ghOwnerInput.value.trim(); const repo=ghRepoInput.value.trim(); const token=ghTokenInput.value.trim();
     const url=`https://api.github.com/repos/${owner}/${repo}/contents/configs/${slug}.json`;

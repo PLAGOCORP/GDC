@@ -22,6 +22,13 @@
     </div>
     <div id="vista-admin" class="admin-panel" style="display:none;">
         <div class="admin-tabs">
+            <div style="display:flex; gap:8px; align-items:center;">
+                <label>Slug</label>
+                <select id="slug-select" style="min-width:180px;"></select>
+                <input type="text" id="slug-input" placeholder="nuevo-slug" style="min-width:160px;">
+                <button id="slug-use-btn" class="tab-btn">Usar/Crear</button>
+                <span id="slug-status" style="color:#6c757d;"></span>
+            </div>
             <button data-tab="diseno" class="tab-btn active">Diseño</button>
             <button data-tab="datos" class="tab-btn">Base de Datos</button>
             <button data-tab="landing" class="tab-btn">Landing</button>
