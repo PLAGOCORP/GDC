@@ -81,6 +81,7 @@ function ensureAdminAuth(cb) {
     if (v === ADMIN_PASSWORD) { sessionStorage.setItem('gdc_admin_ok','1'); cb(); } else { alert('Clave incorrecta'); }
 }
 if (adminBtn) adminBtn.addEventListener('click', () => ensureAdminAuth(() => { cambiarVista('admin'); ensureAdminSlugContext(); setAdminSlugRequiredState(); }));
+document.addEventListener('click', (e)=>{ const t=e.target; if (!t) return; const isAdminBtn = (t.id==='admin-btn') || (t.closest && t.closest('#admin-btn')); if (isAdminBtn) { ensureAdminAuth(() => { cambiarVista('admin'); ensureAdminSlugContext(); setAdminSlugRequiredState(); }); } });
 document.getElementById('formularioCertificado').addEventListener('submit', function(e) {
     e.preventDefault();
     const cedulaInput = document.getElementById('cedula').value.trim();

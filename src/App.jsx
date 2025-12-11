@@ -15,20 +15,9 @@ import {
 
 export default function App(){
   const [admin, setAdmin] = useState(false)
-  useEffect(()=>{
-    const btn = document.getElementById('admin-btn')
-    if (!btn) {
-      const b = document.createElement('button')
-      b.id = 'admin-btn'
-      b.className = 'admin-fab rounded-full bg-blue-600 text-white px-4 py-2 shadow-lg'
-      b.title = 'Admin'
-      b.textContent = '🛠'
-      document.body.appendChild(b)
-    }
-  },[])
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="min-h-screen flex flex-col">
       <Navbar className="mb-6 rounded-xl px-4 py-3 bg-[var(--primary-color)]">
         <div className="flex items-center gap-4">
           <Typography variant="h5" color="white">GDC</Typography>
@@ -36,21 +25,21 @@ export default function App(){
         </div>
       </Navbar>
 
-      <div id="vista-publica" className={`${admin?'hidden':''}`}>
-        <Card className="p-6">
-          <img id="logo-evento" alt="Logo" className="hidden h-20 mb-3" />
-          <Typography id="titulo-evento" variant="h4" className="mb-2">Descarga tu Certificado de Participación</Typography>
-          <Typography className="mb-4">Por favor, ingresa tu número de documento para obtener tu certificado.</Typography>
-          <form id="formularioCertificado" className="flex gap-3 items-end">
-            <Input id="cedula" label="Número de cédula" className="max-w-sm" />
-            <Button type="submit" color="blue">Buscar y Descargar Certificado</Button>
+      <div id="vista-publica" className={`${admin?'hidden':''} flex-1 grid place-items-center px-4`}>
+        <Card className="p-6 w-full max-w-3xl">
+          <img id="logo-evento" alt="Logo" className="hidden h-16 mb-3 mx-auto" />
+          <Typography id="titulo-evento" variant="h4" className="mb-2 text-center">Descarga tu Certificado de Participación</Typography>
+          <Typography className="mb-4 text-center">Por favor, ingresa tu número de documento para obtener tu certificado.</Typography>
+          <form id="formularioCertificado" className="flex flex-col sm:flex-row gap-3 items-center justify-center">
+            <Input id="cedula" label="Número de cédula" size="md" className="w-full max-w-md" />
+            <Button type="submit" color="blue" className="w-full sm:w-auto">Buscar y Descargar Certificado</Button>
           </form>
-          <div id="mensaje-feedback" className="mt-3 text-sm"></div>
+          <div id="mensaje-feedback" className="mt-3 text-sm text-center"></div>
         </Card>
       </div>
 
-      <div id="vista-admin" className={`${admin?'':'hidden'}`}>
-        <Card className="p-4">
+      <div id="vista-admin" className={`${admin?'':'hidden'} flex-1 grid place-items-center px-4`}>
+        <Card className="p-4 w-full max-w-5xl">
           <div className="flex items-center gap-2 mb-3">
             <Typography>Slug</Typography>
             <select id="slug-select" className="border rounded px-2 py-1 min-w-[180px]"></select>
@@ -190,6 +179,7 @@ export default function App(){
           </Tabs>
         </Card>
       </div>
+      <button id="admin-btn" className="admin-fab rounded-full bg-blue-600 text-white px-4 py-2 shadow-lg" title="Admin">🛠</button>
     </div>
   )
 }
