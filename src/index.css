@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background-color: #f4f4f9;
+  --primary-color: #0056b3;
+  --text-color: #333333;
+}
+
+#zona-calibracion {
+  position: relative;
+  width: 100%;
+  min-height: 320px;
+  background-size: cover;
+  background-position: center;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+#preview-nombre,#preview-cedula {
+  position: absolute;
+}
+.admin-fab {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+}
